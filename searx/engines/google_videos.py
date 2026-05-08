@@ -130,14 +130,22 @@ def response(resp):
         )
         pub_info = extract_text(
             eval_xpath_getindex(
-                result, './/div[contains(@class, "gqF9jc")] | .//div[contains(@class, "WRu9Cd")]', 0, default=None
+                result, './/div[contains(@class, "gqF9jc")] | .//div[contains(@class, "WRu9Cd")] | .//div[contains(@class, "c8rnLc")]',
+                0,
+                default=None,
             ),
             allow_none=True,
         )
         # Broader XPath to find any <img> element
         thumbnail = eval_xpath_getindex(result, './/img/@src', 0, default=None)
         duration = extract_text(
-            eval_xpath_getindex(result, './/span[contains(@class, "k1U36b")]', 0, default=None), allow_none=True
+            eval_xpath_getindex(
+                result,
+                './/span[contains(@class, "k1U36b")] | .//div[contains(@class, "k1U36b")] | .//div[contains(@class, "tVRLD")]',
+                0,
+                default=None,
+            ),
+            allow_none=True,
         )
         video_id = eval_xpath_getindex(result, './/div[@jscontroller="rTuANe"]/@data-vid', 0, default=None)
 

@@ -129,33 +129,37 @@ def response(resp):
     # convert the text to dom
     dom = html.fromstring(resp.text)
 
-    for result in eval_xpath_list(dom, '//div[@class="xrnccd"]'):
+    # Try the new Google News structure (2025+) first, then fall back to the old one
+    # New structure uses div.IFHyqb containers with a.JtKRv title links
+    for result in eval_xpath_list(dom, '//div[contains(@class, "IFHyqb")]'):
 
-        # The first <a> tag in the <article> contains the link to the article
-        # The href attribute of the <a> tag is a google internal link, we have
-        # to decode
+        # The title link has class "JtKRv" and contains the article URL
+        href = eval_xpath_getindex(result, './/a[contains(@class, "JtKRv")]/@href', 0, default=None)
+        if href is None:
+            continue
 
-        href = eval_xpath_getindex(result, './article/a/@href', 0)
-        href = href.split('?')[0]
-        href = href.split('/')[-1]
-        href = base64.urlsafe_b64decode(href + '====')
-        href = href[href.index(b'http') :].split(b'\xd2')[0]
-        href = href.decode()
+        # Google News URLs are base64-encoded internal links starting with "./read/"
+        if href.startswith('./read/'):
+            try:
+                href = href.split('?')[0]
+                href = href.split('/')[-1]
+                href = base64.urlsafe_b64decode(href + '====')
+                href = href[href.index(b'http') :].split(b'\xd2')[0]
+                href = href.decode()
+            except (ValueError, UnicodeDecodeError):
+                continue
 
-        title = extract_text(eval_xpath(result, './article/h3[1]'))
+        title = extract_text(eval_xpath(result, './/a[contains(@class, "JtKRv")]'))
 
         # The pub_date is mostly a string like 'yesterday', not a real
         # timezone date or time.  Therefore we can't use publishedDate.
-        pub_date = extract_text(eval_xpath(result, './article//time'))
-        pub_origin = extract_text(eval_xpath(result, './article//a[@data-n-tid]'))
+        pub_date = extract_text(eval_xpath(result, './/time'))
+        pub_origin = extract_text(eval_xpath(result, './/*[@data-n-tid]'))
 
         content = ' / '.join([x for x in [pub_origin, pub_date] if x])
 
-        # The image URL is located in a preceding sibling <img> tag, e.g.:
-        # "https://lh3.googleusercontent.com/DjhQh7DMszk.....z=-p-h100-w100"
-        # These URL are long but not personalized (double checked via tor).
-
-        thumbnail = extract_text(result.xpath('preceding-sibling::a/figure/img/@src'))
+        # The image URL is located in a preceding sibling or within the result
+        thumbnail = extract_text(result.xpath('.//img/@src'))
 
         results.append(
             {
@@ -165,6 +169,45 @@ def response(resp):
                 'thumbnail': thumbnail,
             }
         )
+
+    # Fallback to the old Google News structure (pre-2025)
+    if not results:
+        for result in eval_xpath_list(dom, '//div[@class="xrnccd"]'):
+
+            # The first <a> tag in the <article> contains the link to the article
+            # The href attribute of the <a> tag is a google internal link, we have
+            # to decode
+
+            href = eval_xpath_getindex(result, './article/a/@href', 0)
+            href = href.split('?')[0]
+            href = href.split('/')[-1]
+            href = base64.urlsafe_b64decode(href + '====')
+            href = href[href.index(b'http') :].split(b'\xd2')[0]
+            href = href.decode()
+
+            title = extract_text(eval_xpath(result, './article/h3[1]'))
+
+            # The pub_date is mostly a string like 'yesterday', not a real
+            # timezone date or time.  Therefore we can't use publishedDate.
+            pub_date = extract_text(eval_xpath(result, './article//time'))
+            pub_origin = extract_text(eval_xpath(result, './article//a[@data-n-tid]'))
+
+            content = ' / '.join([x for x in [pub_origin, pub_date] if x])
+
+            # The image URL is located in a preceding sibling <img> tag, e.g.:
+            # "https://lh3.googleusercontent.com/DjhQh7DMszk.....z=-p-h100-w100"
+            # These URL are long but not personalized (double checked via tor).
+
+            thumbnail = extract_text(result.xpath('preceding-sibling::a/figure/img/@src'))
+
+            results.append(
+                {
+                    'url': href,
+                    'title': title,
+                    'content': content,
+                    'thumbnail': thumbnail,
+                }
+            )
 
     # return results
     return results

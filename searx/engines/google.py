@@ -69,7 +69,7 @@ filter_mapping = {0: "off", 1: "medium", 2: "high"}
 
 # Suggestions are links placed in a *card-section*, we extract only the text
 # from the links not the links itself.
-suggestion_xpath = '//div[contains(@class, "gGQDvd iIWm4b")]//a'
+suggestion_xpath = '//div[contains(@class, "oIk2Cb")]//a | //div[contains(@class, "gGQDvd iIWm4b")]//a'
 
 
 _arcid_range = string.ascii_letters + string.digits + "_-"
@@ -353,7 +353,7 @@ def response(resp: "SXNG_Response"):
     dom = html.fromstring(resp.text)
 
     # parse results
-    for result in eval_xpath_list(dom, '//a[@data-ved and not(@class)]'):
+    for result in eval_xpath_list(dom, '//a[@data-ved and not(@class)] | //a[@data-ved and @class="zReHs"]'):
         # pylint: disable=too-many-nested-blocks
 
         try:
@@ -377,12 +377,15 @@ def response(resp: "SXNG_Response"):
             else:
                 url = raw_url
 
-            content_nodes = eval_xpath(result, '../..//div[contains(@class, "ilUpNd H66NU aSRlid")]')
+            content_nodes = eval_xpath(result, '../..//div[contains(@class, "VwiC3b")]')
+            if not content_nodes:
+                # fallback to old class for older Google HTML variants
+                content_nodes = eval_xpath(result, '../..//div[contains(@class, "ilUpNd H66NU aSRlid")]')
             for item in content_nodes:
                 for script in item.xpath(".//script"):
                     script.getparent().remove(script)
 
-            content = extract_text(content_nodes[0])
+            content = extract_text(content_nodes[0]) if content_nodes else None
 
             # Images that are NOT the favicon
             xpath_image = eval_xpath_getindex(result, './/img', index=0, default=None)
